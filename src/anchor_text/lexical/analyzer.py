@@ -89,6 +89,11 @@ COMMON_SUFFIXES = {
     "dom": ("state, realm", "Germanic"),
     "ship": ("state, skill", "Germanic"),
     "hood": ("state, condition", "Germanic"),
+    # Inflectional suffixes - critical for morphological syllabification
+    "ing": ("present participle", "Germanic"),
+    "ed": ("past tense", "Germanic"),
+    "es": ("plural/verb", "Germanic"),
+    "s": ("plural/verb", "Germanic"),
 }
 
 # Common roots (partial list - LLM will provide more)
@@ -306,48 +311,95 @@ class LexicalAnalyzer:
         )
 
     def _split_syllables(self, word: str) -> list[str]:
-        """Split word into syllables using basic rules.
+        """Split word into syllables prioritizing morphological breaks.
 
-        This is a simplified syllabification - LLM provides better results.
+        Morpheme boundaries (prefix/suffix) take precedence over phonetic rules.
+        This produces pedagogically correct syllabification:
+        - re-act (not rea-ct) - prefix boundary preserved
+        - scop-ing (not sco-ping) - suffix boundary preserved
+        - un-pre-dict-able - all morpheme boundaries preserved
         """
-        word = word.lower()
-        syllables = []
+        word_lower = word.lower()
+        syllables: list[str] = []
+
+        # Phase 1: Extract known prefixes from the front
+        remaining = word_lower
+        prefix_syllables: list[str] = []
+
+        # Sort prefixes by length (longest first) to match greedily
+        sorted_prefixes = sorted(COMMON_PREFIXES.keys(), key=len, reverse=True)
+        for prefix in sorted_prefixes:
+            if remaining.startswith(prefix) and len(remaining) > len(prefix) + 1:
+                prefix_syllables.append(remaining[:len(prefix)])
+                remaining = remaining[len(prefix):]
+
+        # Phase 2: Extract known suffixes from the end
+        suffix_syllables: list[str] = []
+
+        # Sort suffixes by length (longest first) to match greedily
+        sorted_suffixes = sorted(COMMON_SUFFIXES.keys(), key=len, reverse=True)
+        for suffix in sorted_suffixes:
+            if remaining.endswith(suffix) and len(remaining) > len(suffix) + 1:
+                suffix_syllables.insert(0, remaining[-len(suffix):])
+                remaining = remaining[:-len(suffix)]
+                break  # Only strip one suffix to avoid over-segmentation
+
+        # Phase 3: Apply phonetic rules to the remaining stem
+        stem_syllables = self._split_stem_phonetically(remaining)
+
+        # Combine: prefixes + stem + suffixes
+        syllables = prefix_syllables + stem_syllables + suffix_syllables
+
+        return syllables if syllables else [word_lower]
+
+    def _split_stem_phonetically(self, stem: str) -> list[str]:
+        """Split a stem (without prefixes/suffixes) using phonetic VCV/VCCV rules.
+
+        This is the fallback for the middle portion of words after morpheme
+        boundaries have been identified.
+        """
+        if not stem or len(stem) <= 2:
+            return [stem] if stem else []
+
+        syllables: list[str] = []
         current = ""
 
         i = 0
-        while i < len(word):
-            current += word[i]
-            is_vowel = word[i] in "aeiouy"
+        while i < len(stem):
+            current += stem[i]
+            is_vowel = stem[i] in "aeiouy"
 
-            # Check if we should break here
-            if is_vowel and i + 1 < len(word):
-                next_char = word[i + 1]
-                # VCV pattern: break before consonant (o-pen)
+            # Check if we should break after this vowel
+            if is_vowel and i + 1 < len(stem):
+                next_char = stem[i + 1]
+                # VCV pattern: break before single consonant (o-pen)
                 if next_char not in "aeiouy":
-                    # Check for consonant clusters
-                    if i + 2 < len(word) and word[i + 2] not in "aeiouy":
+                    # Check for consonant clusters (VCCV pattern)
+                    if i + 2 < len(stem) and stem[i + 2] not in "aeiouy":
                         # VCCV: break between consonants (hap-py)
                         current += next_char
                         syllables.append(current)
                         current = ""
                         i += 1
                     else:
+                        # VCV: break before the consonant (o-pen)
                         syllables.append(current)
                         current = ""
 
             i += 1
 
+        # Handle remaining characters
         if current:
             if syllables:
-                # Merge short endings
-                if len(current) <= 2 and current not in ["ed", "er", "ly"]:
+                # Merge very short endings into previous syllable
+                if len(current) <= 2 and current not in ["ed", "er", "ly", "le"]:
                     syllables[-1] += current
                 else:
                     syllables.append(current)
             else:
                 syllables.append(current)
 
-        return syllables if syllables else [word]
+        return syllables if syllables else [stem]
 
     def _estimate_difficulty(self, word: str, morphemes: list[MorphemeInfo]) -> int:
         """Estimate word difficulty on 1-10 scale."""

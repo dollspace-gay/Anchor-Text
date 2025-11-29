@@ -128,6 +128,81 @@ class TestLexicalAnalyzer:
         # More complex word should be harder
         assert complex_word.difficulty_score >= simple.difficulty_score
 
+    # ==========================================================================
+    # Morphological Syllabification Tests
+    # ==========================================================================
+
+    def test_syllabify_prefix_boundary_react(self):
+        """Test that 're-act' preserves prefix boundary (not 'rea-ct')."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("react")
+
+        # re + act (morphological) not rea + ct (phonetic error)
+        assert syllables == ["re", "act"], f"Expected ['re', 'act'], got {syllables}"
+
+    def test_syllabify_suffix_boundary_scoping(self):
+        """Test that 'scop-ing' preserves suffix boundary (not 'sco-ping')."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("scoping")
+
+        # scop + ing (morphological) not sco + ping (phonetic error)
+        assert syllables[-1] == "ing", f"Expected suffix 'ing', got {syllables}"
+
+    def test_syllabify_multiple_morphemes_unpredictable(self):
+        """Test that 'un-pre-dict-able' preserves all morpheme boundaries."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("unpredictable")
+
+        # Should identify un-, pre-, and -able as separate syllables
+        assert syllables[0] == "un", f"Expected first syllable 'un', got {syllables}"
+        assert syllables[1] == "pre", f"Expected second syllable 'pre', got {syllables}"
+        assert syllables[-1] == "able", f"Expected last syllable 'able', got {syllables}"
+
+    def test_syllabify_suffix_ing_jumping(self):
+        """Test that 'jump-ing' preserves -ing suffix boundary."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("jumping")
+
+        assert syllables[-1] == "ing", f"Expected suffix 'ing', got {syllables}"
+
+    def test_syllabify_suffix_ed_acted(self):
+        """Test that 'act-ed' preserves -ed suffix boundary."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("acted")
+
+        # act + ed (morphological)
+        assert syllables[-1] == "ed", f"Expected suffix 'ed', got {syllables}"
+
+    def test_syllabify_prefix_dis_disconnect(self):
+        """Test that 'dis-connect' preserves dis- prefix boundary."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("disconnect")
+
+        assert syllables[0] == "dis", f"Expected prefix 'dis', got {syllables}"
+
+    def test_syllabify_prefix_un_unhappy(self):
+        """Test that 'un-happy' preserves un- prefix boundary."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("unhappy")
+
+        assert syllables[0] == "un", f"Expected prefix 'un', got {syllables}"
+
+    def test_syllabify_combined_prefix_suffix_reacting(self):
+        """Test that 're-act-ing' preserves both prefix and suffix."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("reacting")
+
+        assert syllables[0] == "re", f"Expected prefix 're', got {syllables}"
+        assert syllables[-1] == "ing", f"Expected suffix 'ing', got {syllables}"
+
+    def test_syllabify_simple_word_without_affixes(self):
+        """Test phonetic fallback for words without known affixes."""
+        analyzer = LexicalAnalyzer(use_llm=False)
+        syllables = analyzer._split_syllables("potato")
+
+        # Should fall back to phonetic rules
+        assert len(syllables) >= 2, f"Expected at least 2 syllables, got {syllables}"
+
     def test_analyze_document_creates_map(self):
         """Test that document analysis creates a lexical map."""
         analyzer = LexicalAnalyzer(use_llm=False)
