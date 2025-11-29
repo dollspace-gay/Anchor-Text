@@ -1,6 +1,5 @@
 """Tests for the CLI interface."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import patch, Mock
 
@@ -96,7 +95,7 @@ class TestCLI:
         mock_transformer_class.return_value = mock_transformer
 
         # Run
-        result = runner.invoke(app, [str(input_file)])
+        runner.invoke(app, [str(input_file)])
 
         # Verify transformer was called
         mock_transformer.transform_file.assert_called_once()
@@ -117,7 +116,7 @@ class TestCLI:
         mock_transformer_class.return_value = mock_transformer
 
         # Run
-        result = runner.invoke(app, [str(tmp_path)])
+        runner.invoke(app, [str(tmp_path)])
 
         # Should process txt files but not xyz
         assert mock_transformer.transform_file.call_count == 2
@@ -135,7 +134,7 @@ class TestCLI:
         mock_transformer_class.return_value = mock_transformer
 
         # Run
-        result = runner.invoke(app, [str(tmp_path)])
+        runner.invoke(app, [str(tmp_path)])
 
         # Should only process original, not the -anchor file
         assert mock_transformer.transform_file.call_count == 1

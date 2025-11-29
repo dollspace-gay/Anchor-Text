@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from anchor_text.formats.base import FormatHandler
-from anchor_text.formatting.ir import FormattedDocument, TextStyle
+from anchor_text.formatting.ir import FormattedDocument
 
 
 class TXTHandler(FormatHandler):

@@ -2,14 +2,13 @@
 
 import io
 from pathlib import Path
-from typing import Optional
 
 import pdfplumber
 from PIL import Image
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.lib.colors import Color, HexColor
+from reportlab.lib.colors import HexColor
 from reportlab.platypus import (
     SimpleDocTemplate,
     Paragraph,
@@ -17,7 +16,6 @@ from reportlab.platypus import (
     Image as RLImage,
     Table,
     TableStyle,
-    KeepTogether,
     HRFlowable,
 )
 
@@ -27,10 +25,8 @@ from anchor_text.formatting.ir import (
     ImageRef,
     TextBlock,
     VocabularyMetadata,
-    LexicalMap,
     WordEntry,
     MorphemeFamily,
-    DecoderTrap,
 )
 
 
@@ -94,12 +90,13 @@ class PDFHandler(FormatHandler):
         image_index = 0
 
         # Add vocabulary section at the beginning if available
+        separator_color = HexColor("#CCCCCC")
         if document.vocabulary and document.vocabulary.lexical_map:
             story.extend(self._render_vocabulary_section(
                 document.vocabulary, styles
             ))
             story.append(Spacer(1, 24))
-            story.append(HRFlowable(width="100%", thickness=1, color=HexColor("#CCCCCC")))
+            story.append(HRFlowable(width="100%", thickness=1, color=separator_color))
             story.append(Spacer(1, 24))
 
         for block in document.blocks:
@@ -133,7 +130,9 @@ class PDFHandler(FormatHandler):
             families = document.vocabulary.lexical_map.get_root_families()
             if families:
                 story.append(Spacer(1, 36))
-                story.append(HRFlowable(width="100%", thickness=1, color=HexColor("#CCCCCC")))
+                story.append(HRFlowable(
+                    width="100%", thickness=1, color=separator_color
+                ))
                 story.append(Spacer(1, 24))
                 story.extend(self._render_word_families(families, styles))
 

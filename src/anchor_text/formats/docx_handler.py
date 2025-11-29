@@ -4,7 +4,6 @@ from pathlib import Path
 
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -15,7 +14,6 @@ from anchor_text.formatting.ir import (
     ImageRef,
     TextBlock,
     VocabularyMetadata,
-    LexicalMap,
     WordEntry,
     MorphemeFamily,
 )
@@ -172,8 +170,9 @@ class DOCXHandler(FormatHandler):
                         morpheme_run.italic = True
 
                         # Set cell background color
-                        self._set_cell_shading(word_cell, DIFFICULTY_COLORS[tier_name])
-                        self._set_cell_shading(morpheme_cell, DIFFICULTY_COLORS[tier_name])
+                        tier_color = DIFFICULTY_COLORS[tier_name]
+                        self._set_cell_shading(word_cell, tier_color)
+                        self._set_cell_shading(morpheme_cell, tier_color)
 
             if len(tier_words) > 10:
                 more_para = doc.add_paragraph()
@@ -253,7 +252,7 @@ class DOCXHandler(FormatHandler):
 
             words_para = doc.add_paragraph()
             words_para.paragraph_format.left_indent = Inches(0.5)
-            words_run = words_para.add_run(word_list)
+            words_para.add_run(word_list)
 
     def _add_horizontal_line(self, doc: Document) -> None:
         """Add a horizontal line separator."""
@@ -302,9 +301,7 @@ class DOCXHandler(FormatHandler):
 
     def extract_images(self, path: Path) -> list[ImageRef]:
         """Extract images from DOCX file."""
-        from docx import Document
         import zipfile
-        from io import BytesIO
 
         images: list[ImageRef] = []
         position = 0

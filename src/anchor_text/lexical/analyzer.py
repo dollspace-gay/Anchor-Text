@@ -16,7 +16,6 @@ from anchor_text.formatting.ir import (
     LexicalMap,
     WordEntry,
     MorphemeInfo,
-    MorphemeFamily,
     VocabularyMetadata,
 )
 
@@ -206,7 +205,8 @@ class LexicalAnalyzer:
         result = []
         for word in words:
             word_lower = word.lower()
-            if word_lower not in seen and self._estimate_syllables(word) >= min_syllables:
+            has_enough_syllables = self._estimate_syllables(word) >= min_syllables
+            if word_lower not in seen and has_enough_syllables:
                 seen.add(word_lower)
                 result.append(word)
 
@@ -453,7 +453,9 @@ class LexicalAnalyzer:
         # Fall back to local analysis
         return [self._analyze_word_locally(w) for w in words]
 
-    def _parse_llm_analysis(self, response: str, original_words: list[str]) -> list[WordEntry]:
+    def _parse_llm_analysis(
+        self, response: str, original_words: list[str]
+    ) -> list[WordEntry]:
         """Parse LLM morpheme analysis response."""
         import json
 

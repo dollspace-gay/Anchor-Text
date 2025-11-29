@@ -1,6 +1,5 @@
 """Tests for LLM output validation."""
 
-import pytest
 
 from anchor_text.llm.client import validate_transformation
 
@@ -58,7 +57,10 @@ Phi·los·o·phy is the study of questions.
         is_valid, issues = validate_transformation(output)
 
         assert is_valid is False
-        assert any("syllable" in issue.lower() or "dot" in issue.lower() for issue in issues)
+        assert any(
+            "syllable" in issue.lower() or "dot" in issue.lower()
+            for issue in issues
+        )
 
     def test_missing_decoder_trap_fails(self):
         """Test that missing Decoder's Trap is detected."""

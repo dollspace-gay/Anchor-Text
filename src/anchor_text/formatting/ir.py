@@ -135,7 +135,7 @@ class FormattedDocument:
     images: list[ImageRef] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
     # Note: vocabulary is initialized as None, set to VocabularyMetadata when needed
-    # Using string annotation for forward reference since VocabularyMetadata is defined later
+    # Using string annotation for forward reference (VocabularyMetadata defined later)
     vocabulary: Optional["VocabularyMetadata"] = None
 
     @property
@@ -221,9 +221,13 @@ class DecoderTrap:
                 f'    <button class="{" ".join(classes)}" '
                 f'data-index="{i}">{opt.text}</button>'
             )
+        explanation_html = (
+            f'  <p class="trap-explanation" style="display:none">'
+            f'{self.explanation}</p>'
+        )
         html_parts.extend([
             '  </div>',
-            f'  <p class="trap-explanation" style="display:none">{self.explanation}</p>',
+            explanation_html,
             '</div>',
         ])
         return "\n".join(html_parts)

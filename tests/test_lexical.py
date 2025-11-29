@@ -1,6 +1,5 @@
 """Tests for the Lexical Cartography system."""
 
-import pytest
 
 from anchor_text.lexical.analyzer import LexicalAnalyzer
 from anchor_text.lexical.guide import CompanionGuideGenerator

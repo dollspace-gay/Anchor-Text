@@ -1,6 +1,5 @@
 """Tests for the Pre-Reading Primer system."""
 
-import pytest
 
 from anchor_text.lexical.primer import (
     WordDifficultyAnalyzer,

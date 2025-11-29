@@ -2,7 +2,6 @@
 
 from pathlib import Path
 import re
-from typing import Optional
 
 from ebooklib import epub
 from bs4 import BeautifulSoup
@@ -12,12 +11,9 @@ from anchor_text.formatting.ir import (
     FormattedDocument,
     ImageRef,
     TextBlock,
-    VocabularyMetadata,
     LexicalMap,
     WordEntry,
     MorphemeFamily,
-    DecoderTrap,
-    TrapOption,
 )
 
 
@@ -296,13 +292,14 @@ class EPUBHandler(FormatHandler):
         )
 
         # Create interactive HTML using <details> element
+        hint = "Look for syllable patterns and morphemes you recognize."
         html = f'''<div class="decoder-trap">
   <details>
     <summary>🔍 Decoder Check</summary>
     <p><strong>{question}</strong></p>
     <details class="answer-reveal">
       <summary>Tap to check your answer</summary>
-      <p class="correct-answer">Think about the word carefully. Look for syllable patterns and morphemes you recognize.</p>
+      <p class="correct-answer">Think about the word carefully. {hint}</p>
     </details>
   </details>
 </div>'''

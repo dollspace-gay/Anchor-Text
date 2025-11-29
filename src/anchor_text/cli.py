@@ -9,7 +9,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from anchor_text import __version__
 from anchor_text.config import get_settings
-from anchor_text.formats import SUPPORTED_EXTENSIONS, get_handler
+from anchor_text.formats import SUPPORTED_EXTENSIONS
 from anchor_text.formatting.ir import ScaffoldLevel
 from anchor_text.core.transformer import TextTransformer
 from anchor_text.llm.prompts import get_level_description
@@ -146,7 +146,10 @@ def process_folder(
             files.extend(folder_path.glob(f"*{ext}"))
 
     # Skip already-processed files (those ending in -anchor or -vocab-guide)
-    files = [f for f in files if not f.stem.endswith("-anchor") and not f.stem.endswith("-vocab-guide")]
+    files = [
+        f for f in files
+        if not f.stem.endswith("-anchor") and not f.stem.endswith("-vocab-guide")
+    ]
 
     if not files:
         console.print(
@@ -243,7 +246,7 @@ def main(
         "-t",
         min=1,
         max=10,
-        help="Number of word occurrences before fading support (default: 3). Requires --adaptive",
+        help="Occurrences before fading support (default: 3). Requires --adaptive",
     ),
     verbose: bool = typer.Option(
         False,
@@ -289,7 +292,7 @@ def main(
     # Warn if fade_threshold specified without adaptive
     if fade_threshold is not None and not adaptive:
         console.print(
-            "[yellow]Warning:[/yellow] --fade-threshold has no effect without --adaptive"
+            "[yellow]Warning:[/yellow] --fade-threshold requires --adaptive"
         )
 
     if path.is_file():

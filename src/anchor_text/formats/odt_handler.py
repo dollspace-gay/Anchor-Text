@@ -2,7 +2,6 @@
 
 from pathlib import Path
 import zipfile
-from io import BytesIO
 
 from odf.opendocument import OpenDocumentText, load
 from odf.style import Style, TextProperties

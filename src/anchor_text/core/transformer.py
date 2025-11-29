@@ -56,8 +56,8 @@ class TextTransformer:
             level: Scaffolding level (1-5, default 1 = MAX support)
             enhanced_traps: Whether to generate enhanced decoder traps
             pre_reading_primer: Whether to generate pre-reading warm-up section
-            adaptive: Whether to use adaptive scaffolding (fade support for repeated words)
-            fade_threshold: Custom threshold for word mastery (default: 3 for adaptive)
+            adaptive: Use adaptive scaffolding (fade support for repeated words)
+            fade_threshold: Custom threshold for word mastery (default: 3)
         """
         settings = get_settings()
         self.model = model or settings.default_model
@@ -76,8 +76,13 @@ class TextTransformer:
         self.lexical_analyzer = LexicalAnalyzer(model=self.model, use_llm=False)
 
         # Optional components that can use the lexical analysis
-        self.trap_generator = TrapGenerator(model=self.model) if enhanced_traps else None
-        self.primer_generator = PrimerGenerator(model=self.model, use_llm=False) if pre_reading_primer else None
+        self.trap_generator = (
+            TrapGenerator(model=self.model) if enhanced_traps else None
+        )
+        self.primer_generator = (
+            PrimerGenerator(model=self.model, use_llm=False)
+            if pre_reading_primer else None
+        )
 
         # Initialize scaffolding context for adaptive mode
         if adaptive:

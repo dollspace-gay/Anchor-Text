@@ -13,10 +13,8 @@ from anchor_text.config import get_settings
 from anchor_text.formatting.ir import (
     FormattedDocument,
     TextBlock,
-    TextRun,
     TextStyle,
     WordEntry,
-    MorphemeInfo,
     VocabularyMetadata,
     LexicalMap,
 )
@@ -347,7 +345,7 @@ class PrimerGenerator:
         for entry in words:
             # Basic pronunciation from syllables
             syllables = entry.syllables if entry.syllables else [entry.word]
-            # Capitalize likely stressed syllable (usually second-to-last for multisyllabic)
+            # Capitalize likely stressed syllable (second-to-last for multisyllabic)
             if len(syllables) > 1:
                 stress_idx = max(0, len(syllables) - 2)
                 syllables = [
@@ -387,7 +385,8 @@ class PrimerGenerator:
         # Word with syllables
         word_block = TextBlock()
         word_block.append(entry.syllable_text, TextStyle.BOLD)
-        word_block.append(f"  [{definition.get('pronunciation', '')}]", TextStyle.ITALIC)
+        pronunciation = definition.get('pronunciation', '')
+        word_block.append(f"  [{pronunciation}]", TextStyle.ITALIC)
         blocks.append(word_block)
 
         # Definition

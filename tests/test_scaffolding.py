@@ -1,6 +1,5 @@
 """Tests for the Dynamic Scaffolding system."""
 
-import pytest
 
 from anchor_text.core.scaffolding import (
     ScaffoldingContext,
@@ -268,8 +267,12 @@ class TestScaffoldingEdgeCases:
         """Test that exclusion prompt limits to top 50 words."""
         context = ScaffoldingContext(threshold=1)
         # Generate 100 unique alphabetic words with 4+ characters
-        alphabet = "abcdefghijklmnopqrstuvwxyz"
-        words = [f"test{alphabet[i % 26]}{alphabet[(i + 5) % 26]}{alphabet[(i + 10) % 26]}{alphabet[(i + 15) % 26]}" for i in range(100)]
+        alpha = "abcdefghijklmnopqrstuvwxyz"
+        words = [
+            f"test{alpha[i % 26]}{alpha[(i + 5) % 26]}"
+            f"{alpha[(i + 10) % 26]}{alpha[(i + 15) % 26]}"
+            for i in range(100)
+        ]
         text = " ".join(words)
         context.update_exposure(text)
 

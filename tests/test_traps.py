@@ -1,7 +1,6 @@
 """Tests for the Enhanced Decoder Traps generator."""
 
-import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from anchor_text.llm.traps import TrapGenerator, generate_lookalikes
 from anchor_text.formatting.ir import (
@@ -23,14 +22,20 @@ class TestGenerateLookalikes:
         lookalikes = generate_lookalikes("hypothesis", count=2)
         assert len(lookalikes) >= 1
         # Should generate words starting with similar prefixes
-        assert any(l.startswith("hyper") or l.startswith("hospi") for l in lookalikes)
+        assert any(
+            word.startswith("hyper") or word.startswith("hospi")
+            for word in lookalikes
+        )
 
     def test_prefix_substitution_pre(self):
         """Test lookalike generation for pre- prefix."""
         lookalikes = generate_lookalikes("predict", count=2)
         assert len(lookalikes) >= 1
         # Should generate words like protect, prodict, etc.
-        assert any(l.startswith("pro") or l.startswith("per") for l in lookalikes)
+        assert any(
+            word.startswith("pro") or word.startswith("per")
+            for word in lookalikes
+        )
 
     def test_suffix_substitution_tion(self):
         """Test lookalike generation for -tion suffix."""
@@ -40,7 +45,7 @@ class TestGenerateLookalikes:
     def test_no_duplicate_of_original(self):
         """Test that lookalikes don't include the original word."""
         lookalikes = generate_lookalikes("consideration", count=5)
-        assert "consideration" not in [l.lower() for l in lookalikes]
+        assert "consideration" not in [word.lower() for word in lookalikes]
 
     def test_respects_count_limit(self):
         """Test that count parameter limits results."""
@@ -140,9 +145,14 @@ class TestTrapGenerator:
         """Test extraction from document with decoder trap."""
         generator = TrapGenerator()
         doc = FormattedDocument(blocks=[
-            TextBlock(runs=[TextRun(text="The scientists hypothesized.", style=TextStyle.NONE)]),
+            TextBlock(runs=[
+                TextRun(text="The scientists hypothesized.", style=TextStyle.NONE)
+            ]),
             TextBlock(
-                runs=[TextRun(text="[Decoder Check: What did the scientists do?]", style=TextStyle.NONE)],
+                runs=[TextRun(
+                    text="[Decoder Check: What did the scientists do?]",
+                    style=TextStyle.NONE
+                )],
                 is_decoder_trap=True,
             ),
         ])
@@ -181,7 +191,11 @@ class TestTrapGenerator:
             "explanation": "Test explanation"
         }]'''
 
-        targets = [{"paragraph_text": "Test", "existing_question": "Test?", "paragraph_index": 0}]
+        targets = [{
+            "paragraph_text": "Test",
+            "existing_question": "Test?",
+            "paragraph_index": 0
+        }]
         traps = generator._parse_response(response, targets)
 
         assert len(traps) == 1
@@ -202,7 +216,11 @@ class TestTrapGenerator:
     "distractors": []
 }]
 ```'''
-        targets = [{"paragraph_text": "Test", "existing_question": "Test?", "paragraph_index": 0}]
+        targets = [{
+            "paragraph_text": "Test",
+            "existing_question": "Test?",
+            "paragraph_index": 0
+        }]
         traps = generator._parse_response(response, targets)
 
         assert len(traps) == 1

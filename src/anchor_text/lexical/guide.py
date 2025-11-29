@@ -5,12 +5,10 @@ including Root Key, difficulty tiers, and morpheme families.
 """
 
 from pathlib import Path
-from typing import Optional
 
 from anchor_text.formatting.ir import (
     FormattedDocument,
     TextBlock,
-    TextRun,
     TextStyle,
     LexicalMap,
     MorphemeFamily,
@@ -89,7 +87,10 @@ class CompanionGuideGenerator:
         # Challenging words (7-10)
         if lexical_map.difficulty_tiers["challenging"]:
             tier_block = TextBlock()
-            tier_block.append("Challenging Words (Preview These First)", TextStyle.BOLD | TextStyle.ITALIC)
+            tier_block.append(
+                "Challenging Words (Preview These First)",
+                TextStyle.BOLD | TextStyle.ITALIC
+            )
             blocks.append(tier_block)
 
             for word_key in lexical_map.difficulty_tiers["challenging"][:15]:
@@ -104,7 +105,8 @@ class CompanionGuideGenerator:
             blocks.append(tier_block)
 
             word_line = TextBlock()
-            words = [lexical_map.words[k].word for k in lexical_map.difficulty_tiers["medium"][:20]]
+            medium_keys = lexical_map.difficulty_tiers["medium"][:20]
+            words = [lexical_map.words[k].word for k in medium_keys]
             word_line.append(" · ".join(words))
             blocks.append(word_line)
 
@@ -115,7 +117,8 @@ class CompanionGuideGenerator:
             blocks.append(tier_block)
 
             word_line = TextBlock()
-            words = [lexical_map.words[k].word for k in lexical_map.difficulty_tiers["easy"][:20]]
+            easy_keys = lexical_map.difficulty_tiers["easy"][:20]
+            words = [lexical_map.words[k].word for k in easy_keys]
             word_line.append(" · ".join(words))
             blocks.append(word_line)
 
@@ -208,7 +211,8 @@ class CompanionGuideGenerator:
             for family in families:
                 if family.words:
                     line = TextBlock()
-                    line.append(f"  {family.words[0].word}  →  ____{family.root.meaning}____")
+                    meaning = family.root.meaning
+                    line.append(f"  {family.words[0].word}  →  ____{meaning}____")
                     blocks.append(line)
 
         # Exercise 2: Syllable counting
@@ -216,7 +220,8 @@ class CompanionGuideGenerator:
         ex2_header.append("2. Count the Syllables", TextStyle.BOLD)
         blocks.append(ex2_header)
 
-        challenging = [lexical_map.words[k] for k in lexical_map.difficulty_tiers["challenging"][:5]]
+        challenging_keys = lexical_map.difficulty_tiers["challenging"][:5]
+        challenging = [lexical_map.words[k] for k in challenging_keys]
         if challenging:
             for entry in challenging:
                 line = TextBlock()

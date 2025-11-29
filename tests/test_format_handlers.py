@@ -1,8 +1,6 @@
 """Tests for format handlers with vocabulary rendering."""
 
 import pytest
-from pathlib import Path
-from io import BytesIO
 
 from anchor_text.formatting.ir import (
     FormattedDocument,
@@ -13,8 +11,6 @@ from anchor_text.formatting.ir import (
     WordEntry,
     MorphemeInfo,
     MorphemeFamily,
-    DecoderTrap,
-    TrapOption,
 )
 from anchor_text.formats.pdf_handler import (
     PDFHandler,

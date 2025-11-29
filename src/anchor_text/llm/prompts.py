@@ -243,9 +243,15 @@ def get_level_description(level: int) -> str:
     """
     level = ScaffoldLevel.validate(level)
     descriptions = {
-        ScaffoldLevel.MAX: "Full support: syllable dots, root anchoring, syntactic spine, decoder traps",
-        ScaffoldLevel.HIGH: "High support: root anchoring, syntactic spine, decoder traps (no syllable dots)",
-        ScaffoldLevel.MED: "Medium support: syntactic spine, decoder traps (no root anchoring)",
+        ScaffoldLevel.MAX: (
+            "Full support: syllable dots, root anchoring, syntactic spine, traps"
+        ),
+        ScaffoldLevel.HIGH: (
+            "High support: root anchoring, syntactic spine, traps (no dots)"
+        ),
+        ScaffoldLevel.MED: (
+            "Medium support: syntactic spine, traps (no root anchoring)"
+        ),
         ScaffoldLevel.LOW: "Low support: decoder traps only (no bold/italic)",
         ScaffoldLevel.MIN: "Minimal: clean layout only (no formatting or traps)",
     }

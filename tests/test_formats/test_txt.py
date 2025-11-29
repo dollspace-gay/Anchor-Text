@@ -1,6 +1,5 @@
 """Tests for TXT handler."""
 
-import pytest
 from pathlib import Path
 
 from anchor_text.formats.txt_handler import TXTHandler
