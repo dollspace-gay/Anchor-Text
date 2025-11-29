@@ -8,7 +8,8 @@
       "Bash(pip install:*)",
       "Bash(python -m pytest:*)",
       "Bash(python anchor.py:*)",
-      "Bash(bd sync:*)"
+      "Bash(bd sync:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

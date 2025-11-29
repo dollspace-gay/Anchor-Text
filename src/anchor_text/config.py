@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     )
 
     # API Keys (LiteLLM reads these automatically)
+    # For Gemini, LiteLLM expects GEMINI_API_KEY
+    gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
     google_api_key: Optional[str] = Field(default=None, alias="GOOGLE_API_KEY")
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
     anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")

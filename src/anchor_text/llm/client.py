@@ -1,5 +1,6 @@
 """LLM client wrapper using LiteLLM for multi-provider support."""
 
+import os
 from typing import Optional
 
 from litellm import completion
@@ -50,6 +51,24 @@ class LLMClient:
         self.temperature = temperature or settings.llm_temperature
         self.max_tokens = max_tokens
         self.max_retries = settings.max_retries
+
+        # Ensure API keys are set in environment for LiteLLM
+        self._setup_api_keys(settings)
+
+    def _setup_api_keys(self, settings) -> None:
+        """Ensure API keys are available in environment for LiteLLM."""
+        # LiteLLM expects GEMINI_API_KEY for Google AI Studio
+        # Also accept GOOGLE_API_KEY as fallback
+        if settings.gemini_api_key:
+            os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
+        elif settings.google_api_key:
+            os.environ["GEMINI_API_KEY"] = settings.google_api_key
+
+        if settings.openai_api_key:
+            os.environ["OPENAI_API_KEY"] = settings.openai_api_key
+
+        if settings.anthropic_api_key:
+            os.environ["ANTHROPIC_API_KEY"] = settings.anthropic_api_key
 
     @retry(
         stop=stop_after_attempt(3),

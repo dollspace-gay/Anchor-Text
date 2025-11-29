@@ -1,0 +1,40 @@
+# Anchor Text - Requirements
+# Install with: pip install -r requirements.txt
+
+# LLM Integration
+litellm>=1.50.0
+tiktoken>=0.7.0
+
+# Google Gemini support (required for default model)
+google-generativeai>=0.8.0
+grpcio>=1.62.3,<1.68.0
+grpcio-status>=1.62.3,<1.68.0
+
+# OpenAI support
+openai>=1.0.0
+
+# Anthropic support
+anthropic>=0.18.0
+
+# CLI Framework
+typer[all]>=0.12.0
+rich>=13.7.0
+
+# Document Format Handlers
+python-docx>=1.1.0
+pdfplumber>=0.11.0
+reportlab>=4.2.0
+odfpy>=1.4.1
+striprtf>=0.0.26
+ebooklib>=0.18
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+Pillow>=10.0.0
+
+# Configuration & Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# Retry Logic
+tenacity>=8.2.0

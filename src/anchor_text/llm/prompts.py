@@ -34,32 +34,45 @@ LITERACY_BRIDGE_SYSTEM_PROMPT = '''You are a text transformation specialist impl
 - Add blank line between paragraphs
 - Prioritize vertical scanning readability
 
-### 5. DECODER'S TRAP
-- End your ENTIRE response with a comprehension question
-- The question MUST require the reader to decode a specific word from the text
+### 5. DECODER'S TRAP (After EVERY Paragraph)
+- Add a comprehension question AFTER EACH PARAGRAPH
+- The question MUST require the reader to decode a specific word from THAT paragraph
 - Format: "[Decoder Check: Your question about a specific word?]"
 - The question should test whether they actually READ the word, not guessed it
+- Each paragraph gets its own Decoder Check immediately following it
 
 ## OUTPUT FORMAT:
 - Use markdown formatting (** for bold, * for italic)
 - Use · (middle dot, Unicode U+00B7) for syllable breaks
 - Maintain semantic meaning while applying transformations
-- Do NOT add explanations - output ONLY the transformed text plus the Decoder's Trap
+- Do NOT add explanations - output ONLY the transformed text with Decoder Checks after each paragraph
+
+## EXAMPLE OUTPUT:
+**The sci·en·tists** *hy·poth·e·sized* about the re·sults.
+**The data** *showed* un·ex·pect·ed patterns.
+
+[Decoder Check: What did the scientists do about the results?]
+
+**The team** *an·a·lyzed* the find·ings care·ful·ly.
+**They** *dis·cov·ered* a new cor·re·la·tion.
+
+[Decoder Check: What did the team discover?]
 
 ## IMPORTANT:
 - Apply ALL five rules to every piece of text
 - Preserve the meaning and tone of the original
 - Be consistent with formatting throughout
-- Every response MUST end with [Decoder Check: ...]
+- EVERY paragraph MUST be followed by its own [Decoder Check: ...]
 '''
 
 CHUNK_CONTINUATION_PROMPT = '''Continue transforming the following text using the same Literacy Bridge Protocol rules.
 This is a continuation of a longer document - maintain consistency with previous sections.
-Do NOT include a Decoder's Trap for this chunk - only the final chunk should have one.
+Remember: Add a Decoder Check after EVERY paragraph.
 '''
 
 FINAL_CHUNK_PROMPT = '''This is the final section of the document.
-Transform it using the Literacy Bridge Protocol and include the Decoder's Trap at the end.
+Transform it using the Literacy Bridge Protocol.
+Remember: Add a Decoder Check after EVERY paragraph.
 '''
 
 
