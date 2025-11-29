@@ -12,6 +12,7 @@ from tenacity import (
 )
 
 from anchor_text.config import get_settings
+from anchor_text.formatting.ir import ScaffoldLevel
 from anchor_text.llm.prompts import get_system_prompt
 
 
@@ -105,6 +106,7 @@ class LLMClient:
         text: str,
         is_continuation: bool = False,
         is_final: bool = True,
+        level: int = ScaffoldLevel.MAX,
     ) -> str:
         """Transform text using the Literacy Bridge Protocol.
 
@@ -112,11 +114,12 @@ class LLMClient:
             text: The text to transform
             is_continuation: Whether this is a middle chunk
             is_final: Whether this is the last chunk
+            level: Scaffolding level (1-5, default 1 = MAX support)
 
         Returns:
             Transformed text with protocol formatting applied
         """
-        system_prompt = get_system_prompt(is_continuation, is_final)
+        system_prompt = get_system_prompt(is_continuation, is_final, level)
         return self._call_llm(text, system_prompt)
 
     def transform_with_validation(
@@ -124,6 +127,7 @@ class LLMClient:
         text: str,
         is_continuation: bool = False,
         is_final: bool = True,
+        level: int = ScaffoldLevel.MAX,
     ) -> str:
         """Transform text with validation and auto-retry on failure.
 
@@ -131,6 +135,7 @@ class LLMClient:
             text: The text to transform
             is_continuation: Whether this is a middle chunk
             is_final: Whether this is the last chunk
+            level: Scaffolding level (1-5, default 1 = MAX support)
 
         Returns:
             Validated transformed text
@@ -138,9 +143,23 @@ class LLMClient:
         Raises:
             ValidationError: If validation fails after max retries
         """
+        # Validation requirements vary by level
+        expect_bold = level <= ScaffoldLevel.MED  # Levels 1-3 have bold
+        expect_italic = level <= ScaffoldLevel.MED  # Levels 1-3 have italic
+        expect_dots = level == ScaffoldLevel.MAX  # Only level 1 has dots
+        expect_trap = level <= ScaffoldLevel.LOW  # Levels 1-4 have traps
+
         for attempt in range(self.max_retries):
-            result = self.transform_text(text, is_continuation, is_final)
-            is_valid, issues = validate_transformation(result, is_final)
+            result = self.transform_text(text, is_continuation, is_final, level)
+
+            # Use level-appropriate validation
+            is_valid, issues = validate_transformation(
+                result,
+                expect_decoder_trap=expect_trap,
+                expect_bold=expect_bold,
+                expect_italic=expect_italic,
+                expect_syllable_dots=expect_dots,
+            )
 
             if is_valid:
                 return result
@@ -153,9 +172,15 @@ class LLMClient:
                 )
                 result = self._call_llm(
                     text + reminder,
-                    get_system_prompt(is_continuation, is_final),
+                    get_system_prompt(is_continuation, is_final, level),
                 )
-                is_valid, issues = validate_transformation(result, is_final)
+                is_valid, issues = validate_transformation(
+                    result,
+                    expect_decoder_trap=expect_trap,
+                    expect_bold=expect_bold,
+                    expect_italic=expect_italic,
+                    expect_syllable_dots=expect_dots,
+                )
                 if is_valid:
                     return result
 
@@ -163,12 +188,21 @@ class LLMClient:
         return result
 
 
-def validate_transformation(output: str, expect_decoder_trap: bool = True) -> tuple[bool, list[str]]:
+def validate_transformation(
+    output: str,
+    expect_decoder_trap: bool = True,
+    expect_bold: bool = True,
+    expect_italic: bool = True,
+    expect_syllable_dots: bool = True,
+) -> tuple[bool, list[str]]:
     """Validate that AI output contains required Literacy Bridge elements.
 
     Args:
         output: The AI's transformed text
         expect_decoder_trap: Whether to require the Decoder's Trap
+        expect_bold: Whether to require bold formatting
+        expect_italic: Whether to require italic formatting
+        expect_syllable_dots: Whether to require syllable dots
 
     Returns:
         Tuple of (is_valid, list_of_issues)
@@ -176,29 +210,30 @@ def validate_transformation(output: str, expect_decoder_trap: bool = True) -> tu
     issues: list[str] = []
 
     # Check for bold markers (root anchoring / syntactic spine subjects)
-    if "**" not in output:
+    if expect_bold and "**" not in output:
         issues.append("bold formatting (root anchoring/subjects)")
 
     # Check for italic markers (syntactic spine verbs)
     # Need to check for single * that's not part of **
-    has_italic = False
-    i = 0
-    while i < len(output):
-        if output[i] == "*":
-            if i + 1 < len(output) and output[i + 1] == "*":
-                # This is bold, skip
-                i += 2
-                continue
-            else:
-                has_italic = True
-                break
-        i += 1
+    if expect_italic:
+        has_italic = False
+        i = 0
+        while i < len(output):
+            if output[i] == "*":
+                if i + 1 < len(output) and output[i + 1] == "*":
+                    # This is bold, skip
+                    i += 2
+                    continue
+                else:
+                    has_italic = True
+                    break
+            i += 1
 
-    if not has_italic:
-        issues.append("italic formatting (verbs)")
+        if not has_italic:
+            issues.append("italic formatting (verbs)")
 
     # Check for middle dots (syllable breaking)
-    if "·" not in output:
+    if expect_syllable_dots and "·" not in output:
         issues.append("syllable breaks (middle dots)")
 
     # Check for Decoder's Trap

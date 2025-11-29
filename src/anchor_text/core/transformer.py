@@ -5,10 +5,17 @@ from typing import Optional
 
 from anchor_text.config import get_settings
 from anchor_text.formats import get_handler, SUPPORTED_EXTENSIONS
-from anchor_text.formatting.ir import FormattedDocument, ImageRef
+from anchor_text.formatting.ir import (
+    FormattedDocument,
+    ImageRef,
+    ScaffoldLevel,
+    VocabularyMetadata,
+)
 from anchor_text.formatting.parser import MarkdownParser
 from anchor_text.llm.client import LLMClient
 from anchor_text.llm.chunker import DocumentChunker
+from anchor_text.llm.traps import TrapGenerator
+from anchor_text.lexical.primer import PrimerGenerator
 
 
 class TransformationError(Exception):
@@ -25,27 +32,39 @@ class TextTransformer:
     2. Chunk text if needed (for large documents)
     3. Transform via LLM with Literacy Bridge Protocol
     4. Parse AI markdown output to IR
-    5. Write to output file in same format
+    5. Optionally enhance with interactive traps (System 3)
+    6. Write to output file in same format
     """
 
     def __init__(
         self,
         model: Optional[str] = None,
         api_base: Optional[str] = None,
+        level: int = ScaffoldLevel.MAX,
+        enhanced_traps: bool = False,
+        pre_reading_primer: bool = False,
     ) -> None:
         """Initialize the transformer.
 
         Args:
             model: LiteLLM model string
             api_base: Optional API base URL for local LLMs
+            level: Scaffolding level (1-5, default 1 = MAX support)
+            enhanced_traps: Whether to generate enhanced decoder traps
+            pre_reading_primer: Whether to generate pre-reading warm-up section
         """
         settings = get_settings()
         self.model = model or settings.default_model
         self.api_base = api_base
+        self.level = ScaffoldLevel.validate(level)
+        self.enhanced_traps = enhanced_traps
+        self.pre_reading_primer = pre_reading_primer
 
         self.llm_client = LLMClient(model=self.model, api_base=self.api_base)
         self.chunker = DocumentChunker()
         self.parser = MarkdownParser()
+        self.trap_generator = TrapGenerator(model=self.model) if enhanced_traps else None
+        self.primer_generator = PrimerGenerator(model=self.model, use_llm=False) if pre_reading_primer else None
 
     def transform_file(
         self,
@@ -92,8 +111,19 @@ class TextTransformer:
         document = self.parser.parse(
             transformed_text,
             images=images,
-            metadata={"source": str(input_path)},
+            metadata={"source": str(input_path), "scaffold_level": self.level},
         )
+
+        # Add vocabulary metadata with scaffold level
+        document.vocabulary = VocabularyMetadata(scaffold_level=self.level)
+
+        # Optionally add pre-reading primer
+        if self.primer_generator:
+            document = self.primer_generator.enhance_document(document)
+
+        # Optionally enhance with interactive traps
+        if self.trap_generator and self.level <= ScaffoldLevel.LOW:
+            document = self.trap_generator.enhance_document(document)
 
         # Write output
         output_handler_class = get_handler(output_path.suffix.lower())
@@ -114,7 +144,7 @@ class TextTransformer:
         if not self.chunker.needs_chunking(text):
             # Single chunk - simple case
             return self.llm_client.transform_with_validation(
-                text, is_continuation=False, is_final=True
+                text, is_continuation=False, is_final=True, level=self.level
             )
 
         # Multi-chunk processing
@@ -125,6 +155,7 @@ class TextTransformer:
                 chunk_text,
                 is_continuation=not is_first,
                 is_final=is_last,
+                level=self.level,
             )
             transformed_parts.append(transformed)
 
@@ -173,4 +204,17 @@ class TextTransformer:
             FormattedDocument with parsed content
         """
         transformed = self._transform_text(text)
-        return self.parser.parse(transformed, images=images)
+        document = self.parser.parse(transformed, images=images)
+
+        # Add vocabulary metadata with scaffold level
+        document.vocabulary = VocabularyMetadata(scaffold_level=self.level)
+
+        # Optionally add pre-reading primer
+        if self.primer_generator:
+            document = self.primer_generator.enhance_document(document)
+
+        # Optionally enhance with interactive traps
+        if self.trap_generator and self.level <= ScaffoldLevel.LOW:
+            document = self.trap_generator.enhance_document(document)
+
+        return document

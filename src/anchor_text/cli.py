@@ -10,7 +10,11 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from anchor_text import __version__
 from anchor_text.config import get_settings
 from anchor_text.formats import SUPPORTED_EXTENSIONS, get_handler
+from anchor_text.formatting.ir import ScaffoldLevel
 from anchor_text.core.transformer import TextTransformer
+from anchor_text.llm.prompts import get_level_description
+from anchor_text.lexical.analyzer import LexicalAnalyzer
+from anchor_text.lexical.guide import CompanionGuideGenerator
 
 app = typer.Typer(
     name="anchor-text",
@@ -43,6 +47,10 @@ def process_file(
     output_path: Optional[Path],
     model: str,
     verbose: bool,
+    level: int = ScaffoldLevel.MAX,
+    enhanced_traps: bool = False,
+    vocab_guide: bool = False,
+    primer: bool = False,
 ) -> bool:
     """Process a single file. Returns True on success."""
     if not input_path.exists():
@@ -64,11 +72,39 @@ def process_file(
         console.print(f"[blue]Processing:[/blue] {input_path}")
         console.print(f"[blue]Output:[/blue] {output_path}")
         console.print(f"[blue]Model:[/blue] {model}")
+        console.print(f"[blue]Level:[/blue] {level} ({get_level_description(level)})")
+        if enhanced_traps:
+            console.print("[blue]Enhanced traps:[/blue] Enabled")
+        if vocab_guide:
+            console.print("[blue]Vocabulary guide:[/blue] Will be generated")
+        if primer:
+            console.print("[blue]Pre-reading primer:[/blue] Enabled")
 
     try:
-        transformer = TextTransformer(model=model)
-        transformer.transform_file(input_path, output_path)
+        transformer = TextTransformer(
+            model=model,
+            level=level,
+            enhanced_traps=enhanced_traps,
+            pre_reading_primer=primer,
+        )
+        document = transformer.transform_file(input_path, output_path)
         console.print(f"[green]Success:[/green] {output_path}")
+
+        # Generate vocabulary guide if requested
+        if vocab_guide:
+            guide_path = output_path.parent / f"{output_path.stem}-vocab-guide.txt"
+            analyzer = LexicalAnalyzer(model=model, use_llm=False)
+            document = analyzer.enhance_document(document)
+
+            if document.vocabulary and document.vocabulary.lexical_map:
+                generator = CompanionGuideGenerator()
+                guide = generator.generate(
+                    document.vocabulary.lexical_map,
+                    source_title=input_path.stem,
+                )
+                generator.save_as_text(guide, guide_path)
+                console.print(f"[green]Vocabulary guide:[/green] {guide_path}")
+
         return True
     except Exception as e:
         console.print(f"[red]Error processing {input_path.name}:[/red] {e}")
@@ -81,6 +117,10 @@ def process_folder(
     folder_path: Path,
     model: str,
     verbose: bool,
+    level: int = ScaffoldLevel.MAX,
+    enhanced_traps: bool = False,
+    vocab_guide: bool = False,
+    primer: bool = False,
     recursive: bool = True,
 ) -> tuple[int, int]:
     """Process all supported files in a folder. Returns (success_count, fail_count)."""
@@ -96,8 +136,8 @@ def process_folder(
         else:
             files.extend(folder_path.glob(f"*{ext}"))
 
-    # Skip already-processed files (those ending in -anchor)
-    files = [f for f in files if not f.stem.endswith("-anchor")]
+    # Skip already-processed files (those ending in -anchor or -vocab-guide)
+    files = [f for f in files if not f.stem.endswith("-anchor") and not f.stem.endswith("-vocab-guide")]
 
     if not files:
         console.print(
@@ -107,6 +147,7 @@ def process_folder(
         return 0, 0
 
     console.print(f"[blue]Found {len(files)} file(s) to process[/blue]")
+    console.print(f"[blue]Level:[/blue] {level} ({get_level_description(level)})")
 
     success_count = 0
     fail_count = 0
@@ -120,7 +161,7 @@ def process_folder(
 
         for file_path in files:
             progress.update(task, description=f"Processing {file_path.name}...")
-            if process_file(file_path, None, model, verbose):
+            if process_file(file_path, None, model, verbose, level, enhanced_traps, vocab_guide, primer):
                 success_count += 1
             else:
                 fail_count += 1
@@ -148,6 +189,34 @@ def main(
         "-m",
         help="LLM model to use (default: gemini/gemini-3-pro-preview)",
     ),
+    level: int = typer.Option(
+        1,
+        "--level",
+        "-l",
+        min=1,
+        max=5,
+        help="Scaffolding level 1-5 (1=max support, 5=minimal). "
+        "Level 1: Full formatting. Level 2: No syllable dots. "
+        "Level 3: No root anchoring. Level 4: Traps only. Level 5: Plain layout.",
+    ),
+    enhanced_traps: bool = typer.Option(
+        False,
+        "--enhanced-traps",
+        "-e",
+        help="Generate enhanced decoder traps with lookalike distractors",
+    ),
+    vocab_guide: bool = typer.Option(
+        False,
+        "--vocab-guide",
+        "-g",
+        help="Generate a companion vocabulary guide with word families and exercises",
+    ),
+    primer: bool = typer.Option(
+        False,
+        "--primer",
+        "-p",
+        help="Add pre-reading warm-up section with difficult words at document start",
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -173,13 +242,21 @@ def main(
         python anchor.py /path/to/folder
 
         python anchor.py file.docx --model openai/gpt-4o
+
+        python anchor.py file.pdf --level 2  # No syllable dots
+
+        python anchor.py file.pdf --level 3 --enhanced-traps  # Interactive traps
+
+        python anchor.py file.pdf --vocab-guide  # Generate vocabulary guide
+
+        python anchor.py file.pdf --primer  # Add pre-reading warm-up section
     """
     settings = get_settings()
     use_model = model or settings.default_model
 
     if path.is_file():
         # Single file mode
-        success = process_file(path, output, use_model, verbose)
+        success = process_file(path, output, use_model, verbose, level, enhanced_traps, vocab_guide, primer)
         raise typer.Exit(0 if success else 1)
     else:
         # Folder mode
@@ -189,7 +266,7 @@ def main(
                 "Files will be saved alongside originals with -anchor suffix."
             )
 
-        success, fail = process_folder(path, use_model, verbose)
+        success, fail = process_folder(path, use_model, verbose, level, enhanced_traps, vocab_guide, primer)
         console.print(
             f"\n[bold]Complete:[/bold] {success} succeeded, {fail} failed"
         )

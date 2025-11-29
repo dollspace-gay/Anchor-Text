@@ -31,6 +31,73 @@ Anchor Text applies the **Literacy Bridge Protocol** - a set of formatting rules
 5. **Decoder's Trap** - Comprehension question after each paragraph requiring specific word decoding
    - `[Decoder Check: What four-syllable word means "basic"?]`
 
+## Advanced Features
+
+### Scaffolding Levels
+
+Anchor Text supports 5 scaffolding levels that gradually reduce support as the reader improves:
+
+| Level | Name | Description |
+|-------|------|-------------|
+| 1 (default) | MAX | Full formatting: bold roots, syllable breaks, syntactic spine, decoder checks |
+| 2 | HIGH | Most formatting, slightly reduced decoder check frequency |
+| 3 | MED | Balanced support: syllable breaks and occasional decoder checks |
+| 4 | LOW | Minimal formatting: only difficult words get syllable breaks |
+| 5 | MIN | Near-normal text: very rare formatting, subtle highlights only |
+
+```bash
+# Use scaffolding level 3 (medium support)
+python anchor.py document.pdf --level 3
+
+# Use minimal support (level 5)
+python anchor.py document.pdf -l 5
+```
+
+### Enhanced Decoder Traps
+
+Generate multiple-choice decoder traps with "lookalike" distractors that test true decoding ability:
+
+```bash
+python anchor.py document.pdf --enhanced-traps
+```
+
+This generates traps like:
+> **Decoder Check:** Which word means "guess based on evidence"?
+> - A) hypothesize ✓
+> - B) hypnotize (looks similar but different meaning)
+> - C) synthesize (similar ending)
+> - D) hospitalize (similar beginning)
+
+The lookalike words force readers to decode each option rather than guessing from context.
+
+### Pre-Reading Primer
+
+Add a warm-up section at the beginning of documents with the most challenging vocabulary:
+
+```bash
+python anchor.py document.pdf --primer
+```
+
+The primer includes:
+- **Difficult word identification** - Automatically finds words with high syllable counts, irregular phonetics, and academic vocabulary
+- **Pronunciation guides** - Syllable breakdowns with stress markers (hy-POTH-eh-sis)
+- **Brief definitions** - Simple explanations for context
+- **Practice exercises** - Syllable counting activities
+
+### Vocabulary Guide
+
+Generate a companion vocabulary guide PDF alongside the transformed document:
+
+```bash
+python anchor.py document.pdf --vocab-guide
+```
+
+The guide includes:
+- **Word families** - Groups words by common roots (predict, dictate, contradict → all from Latin "dict")
+- **Morpheme analysis** - Prefix, root, and suffix breakdowns
+- **Difficulty tiers** - Words organized by complexity level
+- **Practice exercises** - Fill-in-the-blank and word family matching
+
 ## Installation
 
 ```bash
@@ -56,6 +123,12 @@ python anchor.py /path/to/folder
 
 # Use a specific AI model
 python anchor.py document.docx --model openai/gpt-4o
+
+# Use scaffolding level 3 with pre-reading primer
+python anchor.py document.pdf --level 3 --primer
+
+# Full features: enhanced traps + vocabulary guide
+python anchor.py document.pdf --enhanced-traps --vocab-guide
 ```
 
 ## Configuration
@@ -119,6 +192,30 @@ python anchor.py input.pdf -o /custom/path/output.pdf
 python anchor.py document.pdf -v
 ```
 
+### Using Advanced Features
+
+```bash
+# Gradually reduce support as reader improves
+python anchor.py chapter1.pdf --level 1   # Full support (default)
+python anchor.py chapter2.pdf --level 2   # Slightly reduced
+python anchor.py chapter3.pdf --level 3   # Medium support
+python anchor.py chapter4.pdf --level 4   # Low support
+python anchor.py chapter5.pdf --level 5   # Minimal support
+
+# Add pre-reading warm-up with vocabulary primer
+python anchor.py textbook.pdf --primer
+
+# Generate enhanced multiple-choice decoder traps
+python anchor.py novel.epub --enhanced-traps
+
+# Create companion vocabulary guide
+python anchor.py document.docx --vocab-guide
+# Output: document-anchor.docx + document-vocab-guide.pdf
+
+# Combine all features
+python anchor.py textbook.pdf --level 2 --primer --enhanced-traps --vocab-guide
+```
+
 ## Example Output
 
 **Original text:**
@@ -165,8 +262,13 @@ anchor-text/
 │   │   └── transformer.py    # Main orchestration
 │   ├── llm/
 │   │   ├── client.py     # LiteLLM wrapper
-│   │   ├── prompts.py    # System prompts
-│   │   └── chunker.py    # Document splitting
+│   │   ├── prompts.py    # System prompts (all 5 levels)
+│   │   ├── chunker.py    # Document splitting
+│   │   └── traps.py      # Enhanced decoder trap generator
+│   ├── lexical/
+│   │   ├── analyzer.py   # Lexical Cartography analysis
+│   │   ├── guide.py      # Vocabulary guide generator
+│   │   └── primer.py     # Pre-reading primer generator
 │   ├── formats/
 │   │   ├── txt_handler.py
 │   │   ├── pdf_handler.py
@@ -199,7 +301,19 @@ black src/ tests/
 ruff check src/ tests/
 ```
 
-## Configuration Options
+## CLI Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--output` | `-o` | Custom output path |
+| `--model` | `-m` | LLM model to use (default: gemini/gemini-3-pro-preview) |
+| `--level` | `-l` | Scaffolding level 1-5 (default: 1 = MAX support) |
+| `--enhanced-traps` | `-e` | Generate multiple-choice traps with lookalike distractors |
+| `--primer` | `-p` | Add pre-reading vocabulary warm-up section |
+| `--vocab-guide` | `-g` | Generate companion vocabulary guide PDF |
+| `--verbose` | `-v` | Show detailed processing information |
+
+## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|

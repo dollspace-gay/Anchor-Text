@@ -9,7 +9,8 @@
       "Bash(python -m pytest:*)",
       "Bash(python anchor.py:*)",
       "Bash(bd sync:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(bd show:*)"
     ],
     "deny": [],
     "ask": []

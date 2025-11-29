@@ -153,5 +153,10 @@ class TestCLI:
                 app, [str(input_file), "--model", "openai/gpt-4o"]
             )
 
-            # Check model was passed to transformer
-            mock_class.assert_called_once_with(model="openai/gpt-4o")
+            # Check model was passed to transformer (along with default level and enhanced_traps)
+            mock_class.assert_called_once_with(
+                model="openai/gpt-4o",
+                level=1,
+                enhanced_traps=False,
+                pre_reading_primer=False,
+            )
