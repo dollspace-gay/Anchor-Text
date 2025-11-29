@@ -448,18 +448,15 @@ class LexicalAnalyzer:
 
         return entries
 
-    def analyze_document(self, doc: FormattedDocument) -> LexicalMap:
-        """Analyze all vocabulary in a document.
+    def analyze_text(self, text: str) -> LexicalMap:
+        """Analyze vocabulary in plain text.
 
         Args:
-            doc: The formatted document to analyze
+            text: Plain text to analyze
 
         Returns:
-            LexicalMap with all vocabulary analysis
+            LexicalMap with vocabulary analysis
         """
-        # Extract text from document
-        text = doc.plain_text
-
         # Extract multisyllabic words
         words = self.extract_words(text, min_syllables=2)
 
@@ -472,19 +469,36 @@ class LexicalAnalyzer:
         # Build lexical map
         lexical_map = LexicalMap()
 
-        # Track first occurrences
-        text_lower = text.lower()
         for entry in entries:
-            word_lower = entry.word.lower()
-            # Find paragraph index of first occurrence
-            for i, block in enumerate(doc.blocks):
-                if word_lower in block.plain_text.lower():
-                    entry.first_occurrence = i
-                    break
             lexical_map.add_word(entry)
 
         # Build morpheme families
         lexical_map.families = lexical_map.get_root_families()
+
+        return lexical_map
+
+    def analyze_document(self, doc: FormattedDocument) -> LexicalMap:
+        """Analyze all vocabulary in a document.
+
+        Args:
+            doc: The formatted document to analyze
+
+        Returns:
+            LexicalMap with all vocabulary analysis
+        """
+        # Extract text from document
+        text = doc.plain_text
+
+        # Get base analysis
+        lexical_map = self.analyze_text(text)
+
+        # Track first occurrences in document blocks
+        for word_key, entry in lexical_map.words.items():
+            word_lower = entry.word.lower()
+            for i, block in enumerate(doc.blocks):
+                if word_lower in block.plain_text.lower():
+                    entry.first_occurrence = i
+                    break
 
         return lexical_map
 

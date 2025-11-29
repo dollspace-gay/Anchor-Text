@@ -8,7 +8,17 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 
 from anchor_text.formats.base import FormatHandler
-from anchor_text.formatting.ir import FormattedDocument, ImageRef
+from anchor_text.formatting.ir import (
+    FormattedDocument,
+    ImageRef,
+    TextBlock,
+    VocabularyMetadata,
+    LexicalMap,
+    WordEntry,
+    MorphemeFamily,
+    DecoderTrap,
+    TrapOption,
+)
 
 
 class EPUBHandler(FormatHandler):
@@ -73,12 +83,100 @@ class EPUBHandler(FormatHandler):
         p {
             margin: 0.5em 0;
         }
+        /* Decoder trap styling */
         .decoder-trap {
-            font-style: italic;
-            margin-top: 2em;
+            margin: 1.5em 0;
             padding: 1em;
+            background: #E3F2FD;
+            border-radius: 8px;
+            border-left: 4px solid #1976D2;
+        }
+        .decoder-trap summary {
+            font-weight: bold;
+            cursor: pointer;
+            color: #1976D2;
+            padding: 0.5em 0;
+        }
+        .decoder-trap summary:hover {
+            color: #1565C0;
+        }
+        .trap-options {
+            list-style: none;
+            padding: 0;
+            margin: 1em 0;
+        }
+        .trap-options li {
+            padding: 0.5em 1em;
+            margin: 0.5em 0;
+            background: #fff;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .trap-options li:hover {
             background: #f5f5f5;
-            border-left: 3px solid #666;
+        }
+        .answer-reveal {
+            margin-top: 1em;
+            padding: 1em;
+            background: #E8F5E9;
+            border-radius: 4px;
+        }
+        .answer-reveal summary {
+            color: #2E7D32;
+            font-weight: normal;
+        }
+        .correct-answer {
+            font-weight: bold;
+            color: #2E7D32;
+        }
+        /* Vocabulary section styling */
+        .vocab-section {
+            margin: 2em 0;
+            padding: 1em;
+            background: #FFF8E1;
+            border-radius: 8px;
+        }
+        .vocab-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #F57C00;
+            margin-bottom: 1em;
+        }
+        .vocab-tier {
+            margin: 1em 0;
+        }
+        .vocab-tier h4 {
+            font-size: 1em;
+            margin: 0.5em 0;
+        }
+        .tier-easy { background: #E8F5E9; padding: 0.5em; border-radius: 4px; }
+        .tier-medium { background: #FFF3E0; padding: 0.5em; border-radius: 4px; }
+        .tier-challenging { background: #FFEBEE; padding: 0.5em; border-radius: 4px; }
+        .word-entry {
+            margin: 0.5em 0;
+            padding: 0.5em;
+        }
+        .word-syllables {
+            font-weight: bold;
+        }
+        .word-morphemes {
+            font-style: italic;
+            color: #666;
+        }
+        /* Word families styling */
+        .word-families {
+            margin: 2em 0;
+            padding: 1em;
+            background: #F3E5F5;
+            border-radius: 8px;
+        }
+        .family-root {
+            font-weight: bold;
+            color: #7B1FA2;
+            margin: 0.5em 0;
+        }
+        .family-words {
+            padding-left: 1em;
         }
         """
 
@@ -98,7 +196,8 @@ class EPUBHandler(FormatHandler):
             file_name="content.xhtml",
             lang="en",
         )
-        chapter.set_content(content_html)
+        # Set content as bytes with UTF-8 encoding to handle emojis
+        chapter.set_content(content_html.encode("utf-8"))
         chapter.add_item(css)
         book.add_item(chapter)
 
@@ -135,32 +234,179 @@ class EPUBHandler(FormatHandler):
             "<body>",
         ]
 
+        # Add vocabulary preview section if available
+        if document.vocabulary and document.vocabulary.lexical_map:
+            html_parts.append(self._render_vocabulary_section_html(
+                document.vocabulary.lexical_map
+            ))
+            html_parts.append("<hr/>")
+
         for block in document.blocks:
-            css_class = ' class="decoder-trap"' if block.is_decoder_trap else ""
-            html_parts.append(f"<p{css_class}>")
+            if block.is_decoder_trap:
+                # Render as interactive collapsible section
+                html_parts.append(self._render_trap_block_html(block))
+            else:
+                html_parts.append("<p>")
+                for run in block.runs:
+                    # Escape HTML
+                    text = (
+                        run.text.replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                    )
 
-            for run in block.runs:
-                # Escape HTML
-                text = (
-                    run.text.replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                )
+                    if run.bold and run.italic:
+                        html_parts.append(f"<strong><em>{text}</em></strong>")
+                    elif run.bold:
+                        html_parts.append(f"<strong>{text}</strong>")
+                    elif run.italic:
+                        html_parts.append(f"<em>{text}</em>")
+                    else:
+                        html_parts.append(text)
+                html_parts.append("</p>")
 
-                if run.bold and run.italic:
-                    html_parts.append(f"<strong><em>{text}</em></strong>")
-                elif run.bold:
-                    html_parts.append(f"<strong>{text}</strong>")
-                elif run.italic:
-                    html_parts.append(f"<em>{text}</em>")
-                else:
-                    html_parts.append(text)
-
-            html_parts.append("</p>")
+        # Add word families section at the end
+        if document.vocabulary and document.vocabulary.lexical_map:
+            families = document.vocabulary.lexical_map.get_root_families()
+            if families:
+                html_parts.append("<hr/>")
+                html_parts.append(self._render_word_families_html(families))
 
         html_parts.extend(["</body>", "</html>"])
 
         return "\n".join(html_parts)
+
+    def _render_trap_block_html(self, block: TextBlock) -> str:
+        """Render a decoder trap block as interactive HTML."""
+        # Extract the question text from the block
+        question_text = block.plain_text
+
+        # Parse the decoder check format: [Decoder Check: question]
+        match = re.search(r'\[Decoder Check:\s*(.+?)\]', question_text)
+        if match:
+            question = match.group(1)
+        else:
+            question = question_text
+
+        # Escape for HTML
+        question = (
+            question.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+        # Create interactive HTML using <details> element
+        html = f'''<div class="decoder-trap">
+  <details>
+    <summary>🔍 Decoder Check</summary>
+    <p><strong>{question}</strong></p>
+    <details class="answer-reveal">
+      <summary>Tap to check your answer</summary>
+      <p class="correct-answer">Think about the word carefully. Look for syllable patterns and morphemes you recognize.</p>
+    </details>
+  </details>
+</div>'''
+        return html
+
+    def _render_vocabulary_section_html(self, lexical_map: LexicalMap) -> str:
+        """Render vocabulary preview as HTML."""
+        html_parts = [
+            '<div class="vocab-section">',
+            '<div class="vocab-header">📚 Vocabulary Preview</div>',
+        ]
+
+        # Render each difficulty tier
+        for tier_name, tier_label, css_class in [
+            ("challenging", "Challenging Words", "tier-challenging"),
+            ("medium", "Medium Words", "tier-medium"),
+            ("easy", "Familiar Words", "tier-easy"),
+        ]:
+            tier_words = lexical_map.difficulty_tiers.get(tier_name, [])
+            if not tier_words:
+                continue
+
+            html_parts.append(f'<div class="vocab-tier {css_class}">')
+            html_parts.append(f'<h4>{tier_label} ({len(tier_words)})</h4>')
+
+            # Show up to 8 words per tier
+            for word_key in tier_words[:8]:
+                entry = lexical_map.words.get(word_key)
+                if entry:
+                    syllable_text = self._escape_html(entry.syllable_text)
+                    morpheme_text = self._format_morphemes_html(entry)
+                    html_parts.append(
+                        f'<div class="word-entry">'
+                        f'<span class="word-syllables">{syllable_text}</span>'
+                    )
+                    if morpheme_text:
+                        html_parts.append(
+                            f' <span class="word-morphemes">{morpheme_text}</span>'
+                        )
+                    html_parts.append('</div>')
+
+            if len(tier_words) > 8:
+                html_parts.append(
+                    f'<p><em>... and {len(tier_words) - 8} more</em></p>'
+                )
+
+            html_parts.append('</div>')
+
+        html_parts.append('</div>')
+        return "\n".join(html_parts)
+
+    def _render_word_families_html(self, families: list[MorphemeFamily]) -> str:
+        """Render word families as HTML."""
+        html_parts = [
+            '<div class="word-families">',
+            '<div class="vocab-header">🌳 Word Families</div>',
+            '<p><em>Words grouped by their root morpheme</em></p>',
+        ]
+
+        for family in families[:6]:  # Show up to 6 families
+            root = family.root
+            root_text = self._escape_html(root.text.upper())
+            if root.meaning:
+                root_text += f" ({self._escape_html(root.meaning)})"
+            if root.origin:
+                root_text += f" - {self._escape_html(root.origin)}"
+
+            html_parts.append(f'<div class="family-root">{root_text}</div>')
+            html_parts.append('<div class="family-words">')
+
+            word_list = ", ".join(
+                f"<strong>{self._escape_html(w.syllable_text)}</strong>"
+                for w in family.words[:5]
+            )
+            if len(family.words) > 5:
+                word_list += f", ... (+{len(family.words) - 5} more)"
+
+            html_parts.append(f'<p>{word_list}</p>')
+            html_parts.append('</div>')
+
+        html_parts.append('</div>')
+        return "\n".join(html_parts)
+
+    def _format_morphemes_html(self, entry: WordEntry) -> str:
+        """Format morpheme breakdown for HTML display."""
+        if not entry.morphemes:
+            return ""
+        parts = []
+        for m in entry.morphemes:
+            text = self._escape_html(m.text)
+            if m.meaning:
+                meaning = self._escape_html(m.meaning)
+                parts.append(f"{text} ({meaning})")
+            else:
+                parts.append(text)
+        return " + ".join(parts)
+
+    def _escape_html(self, text: str) -> str:
+        """Escape HTML special characters."""
+        return (
+            text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
 
     def extract_images(self, path: Path) -> list[ImageRef]:
         """Extract images from EPUB file."""

@@ -16,6 +16,8 @@ from anchor_text.llm.client import LLMClient
 from anchor_text.llm.chunker import DocumentChunker
 from anchor_text.llm.traps import TrapGenerator
 from anchor_text.lexical.primer import PrimerGenerator
+from anchor_text.lexical.analyzer import LexicalAnalyzer
+from anchor_text.core.scaffolding import ScaffoldingContext, FadingProfile
 
 
 class TransformationError(Exception):
@@ -43,6 +45,8 @@ class TextTransformer:
         level: int = ScaffoldLevel.MAX,
         enhanced_traps: bool = False,
         pre_reading_primer: bool = False,
+        adaptive: bool = False,
+        fade_threshold: Optional[int] = None,
     ) -> None:
         """Initialize the transformer.
 
@@ -52,6 +56,8 @@ class TextTransformer:
             level: Scaffolding level (1-5, default 1 = MAX support)
             enhanced_traps: Whether to generate enhanced decoder traps
             pre_reading_primer: Whether to generate pre-reading warm-up section
+            adaptive: Whether to use adaptive scaffolding (fade support for repeated words)
+            fade_threshold: Custom threshold for word mastery (default: 3 for adaptive)
         """
         settings = get_settings()
         self.model = model or settings.default_model
@@ -59,12 +65,29 @@ class TextTransformer:
         self.level = ScaffoldLevel.validate(level)
         self.enhanced_traps = enhanced_traps
         self.pre_reading_primer = pre_reading_primer
+        self.adaptive = adaptive
+        self.fade_threshold = fade_threshold
 
         self.llm_client = LLMClient(model=self.model, api_base=self.api_base)
         self.chunker = DocumentChunker()
         self.parser = MarkdownParser()
+
+        # Always initialize lexical analyzer (decoupled from other components)
+        self.lexical_analyzer = LexicalAnalyzer(model=self.model, use_llm=False)
+
+        # Optional components that can use the lexical analysis
         self.trap_generator = TrapGenerator(model=self.model) if enhanced_traps else None
         self.primer_generator = PrimerGenerator(model=self.model, use_llm=False) if pre_reading_primer else None
+
+        # Initialize scaffolding context for adaptive mode
+        if adaptive:
+            profile = FadingProfile.ADAPTIVE
+            self.scaffold_context = ScaffoldingContext(
+                profile=profile,
+                threshold=fade_threshold,
+            )
+        else:
+            self.scaffold_context = None
 
     def transform_file(
         self,
@@ -117,9 +140,15 @@ class TextTransformer:
         # Add vocabulary metadata with scaffold level
         document.vocabulary = VocabularyMetadata(scaffold_level=self.level)
 
-        # Optionally add pre-reading primer
+        # Always run lexical analysis (decoupled from primer/traps)
+        lexical_map = self.lexical_analyzer.analyze_text(text)
+        document.vocabulary.lexical_map = lexical_map
+
+        # Optionally add pre-reading primer (uses shared lexical_map)
         if self.primer_generator:
-            document = self.primer_generator.enhance_document(document)
+            document = self.primer_generator.enhance_document(
+                document, lexical_map=lexical_map
+            )
 
         # Optionally enhance with interactive traps
         if self.trap_generator and self.level <= ScaffoldLevel.LOW:
@@ -141,23 +170,47 @@ class TextTransformer:
         Returns:
             Transformed text with Literacy Bridge formatting
         """
+        # Reset scaffolding context for new document
+        if self.scaffold_context:
+            self.scaffold_context.reset()
+
         if not self.chunker.needs_chunking(text):
-            # Single chunk - simple case
+            # Single chunk - simple case (no adaptive fading for single chunk)
+            exclusion_prompt = ""
+            if self.scaffold_context:
+                # For single chunk, still track but no exclusions on first pass
+                exclusion_prompt = self.scaffold_context.format_exclusion_prompt()
+                self.scaffold_context.update_exposure(text)
+
             return self.llm_client.transform_with_validation(
-                text, is_continuation=False, is_final=True, level=self.level
+                text,
+                is_continuation=False,
+                is_final=True,
+                level=self.level,
+                exclusion_prompt=exclusion_prompt,
             )
 
-        # Multi-chunk processing
+        # Multi-chunk processing with adaptive scaffolding
         transformed_parts: list[str] = []
 
         for chunk_text, is_first, is_last in self.chunker.chunk_text(text):
+            # Get exclusion prompt based on words seen so far
+            exclusion_prompt = ""
+            if self.scaffold_context:
+                exclusion_prompt = self.scaffold_context.format_exclusion_prompt()
+
             transformed = self.llm_client.transform_with_validation(
                 chunk_text,
                 is_continuation=not is_first,
                 is_final=is_last,
                 level=self.level,
+                exclusion_prompt=exclusion_prompt,
             )
             transformed_parts.append(transformed)
+
+            # Update exposure after processing this chunk
+            if self.scaffold_context:
+                self.scaffold_context.update_exposure(chunk_text)
 
         # Join chunks (remove any duplicate overlap content)
         return self._merge_chunks(transformed_parts)
@@ -209,9 +262,15 @@ class TextTransformer:
         # Add vocabulary metadata with scaffold level
         document.vocabulary = VocabularyMetadata(scaffold_level=self.level)
 
-        # Optionally add pre-reading primer
+        # Always run lexical analysis (decoupled from primer/traps)
+        lexical_map = self.lexical_analyzer.analyze_text(text)
+        document.vocabulary.lexical_map = lexical_map
+
+        # Optionally add pre-reading primer (uses shared lexical_map)
         if self.primer_generator:
-            document = self.primer_generator.enhance_document(document)
+            document = self.primer_generator.enhance_document(
+                document, lexical_map=lexical_map
+            )
 
         # Optionally enhance with interactive traps
         if self.trap_generator and self.level <= ScaffoldLevel.LOW:

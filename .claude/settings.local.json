@@ -10,7 +10,8 @@
       "Bash(python anchor.py:*)",
       "Bash(bd sync:*)",
       "Bash(python:*)",
-      "Bash(bd show:*)"
+      "Bash(bd show:*)",
+      "Bash(bd ready:*)"
     ],
     "deny": [],
     "ask": []

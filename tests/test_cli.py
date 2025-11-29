@@ -159,4 +159,6 @@ class TestCLI:
                 level=1,
                 enhanced_traps=False,
                 pre_reading_primer=False,
+                adaptive=False,
+                fade_threshold=None,
             )

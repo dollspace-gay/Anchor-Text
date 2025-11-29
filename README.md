@@ -98,6 +98,26 @@ The guide includes:
 - **Difficulty tiers** - Words organized by complexity level
 - **Practice exercises** - Fill-in-the-blank and word family matching
 
+### Adaptive Scaffolding
+
+Enable dynamic scaffolding that fades support for words as they become familiar:
+
+```bash
+# Enable adaptive scaffolding
+python anchor.py document.pdf --adaptive
+
+# Custom threshold (fade after 5 exposures instead of default 3)
+python anchor.py document.pdf --adaptive --fade-threshold 5
+```
+
+How it works:
+- The first time "philosophy" appears, it gets full formatting: **phi·los·o·phy**
+- After the reader has seen it 3 times (default threshold), formatting fades
+- By the 4th occurrence, it appears as plain text: philosophy
+- This forces independent decoding after initial scaffolding support
+
+Best for multi-chapter books where vocabulary repeats across sections.
+
 ## Installation
 
 ```bash
@@ -212,8 +232,11 @@ python anchor.py novel.epub --enhanced-traps
 python anchor.py document.docx --vocab-guide
 # Output: document-anchor.docx + document-vocab-guide.pdf
 
+# Enable adaptive scaffolding for long documents
+python anchor.py novel.pdf --adaptive --fade-threshold 3
+
 # Combine all features
-python anchor.py textbook.pdf --level 2 --primer --enhanced-traps --vocab-guide
+python anchor.py textbook.pdf --level 2 --primer --enhanced-traps --vocab-guide --adaptive
 ```
 
 ## Example Output
@@ -259,7 +282,8 @@ anchor-text/
 │   ├── cli.py            # Command-line interface
 │   ├── config.py         # Settings management
 │   ├── core/
-│   │   └── transformer.py    # Main orchestration
+│   │   ├── transformer.py    # Main orchestration
+│   │   └── scaffolding.py    # Adaptive scaffolding engine
 │   ├── llm/
 │   │   ├── client.py     # LiteLLM wrapper
 │   │   ├── prompts.py    # System prompts (all 5 levels)
@@ -311,6 +335,8 @@ ruff check src/ tests/
 | `--enhanced-traps` | `-e` | Generate multiple-choice traps with lookalike distractors |
 | `--primer` | `-p` | Add pre-reading vocabulary warm-up section |
 | `--vocab-guide` | `-g` | Generate companion vocabulary guide PDF |
+| `--adaptive` | `-a` | Enable adaptive scaffolding (fade support for repeated words) |
+| `--fade-threshold` | `-t` | Number of exposures before fading (default: 3, requires --adaptive) |
 | `--verbose` | `-v` | Show detailed processing information |
 
 ## Environment Variables

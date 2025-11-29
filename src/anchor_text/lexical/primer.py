@@ -18,6 +18,7 @@ from anchor_text.formatting.ir import (
     WordEntry,
     MorphemeInfo,
     VocabularyMetadata,
+    LexicalMap,
 )
 from anchor_text.lexical.analyzer import LexicalAnalyzer
 
@@ -223,24 +224,55 @@ class PrimerGenerator:
         self.use_llm = use_llm
         self.difficulty_analyzer = WordDifficultyAnalyzer()
 
+    def _select_from_lexical_map(
+        self, lexical_map: LexicalMap, count: int
+    ) -> list[WordEntry]:
+        """Select most difficult words from a pre-computed LexicalMap.
+
+        Args:
+            lexical_map: The lexical map with analyzed words
+            count: Number of words to select
+
+        Returns:
+            List of most difficult WordEntry objects
+        """
+        # Get all words and re-score them with our difficulty analyzer
+        entries: list[WordEntry] = []
+        for word_key, entry in lexical_map.words.items():
+            # Use our difficulty scorer for consistent ranking
+            entry.difficulty_score = self.difficulty_analyzer.score_word(
+                entry.word, entry
+            )
+            if entry.difficulty_score >= 5:  # Min difficulty threshold
+                entries.append(entry)
+
+        # Sort by difficulty (descending) and return top N
+        entries.sort(key=lambda e: -e.difficulty_score)
+        return entries[:count]
+
     def generate_primer(
         self,
         text: str,
         word_count: int = 5,
+        lexical_map: Optional["LexicalMap"] = None,
     ) -> list[TextBlock]:
         """Generate primer blocks for a document.
 
         Args:
-            text: The document text to analyze
+            text: The document text to analyze (used if lexical_map not provided)
             word_count: Number of difficult words to include
+            lexical_map: Optional pre-computed LexicalMap to use for word selection
 
         Returns:
             List of TextBlocks for the primer section
         """
-        # Get difficult words
-        difficult_words = self.difficulty_analyzer.get_difficult_words(
-            text, count=word_count, min_difficulty=5
-        )
+        # Get difficult words - prefer lexical_map if provided
+        if lexical_map is not None:
+            difficult_words = self._select_from_lexical_map(lexical_map, word_count)
+        else:
+            difficult_words = self.difficulty_analyzer.get_difficult_words(
+                text, count=word_count, min_difficulty=5
+            )
 
         if not difficult_words:
             return []
@@ -406,18 +438,22 @@ class PrimerGenerator:
         self,
         doc: FormattedDocument,
         word_count: int = 5,
+        lexical_map: Optional[LexicalMap] = None,
     ) -> FormattedDocument:
         """Add pre-reading primer to the beginning of a document.
 
         Args:
             doc: The document to enhance
             word_count: Number of difficult words to include
+            lexical_map: Optional pre-computed LexicalMap for word selection
 
         Returns:
             Document with primer prepended
         """
-        # Generate primer from document text
-        primer_blocks = self.generate_primer(doc.plain_text, word_count)
+        # Generate primer from document text (or use provided lexical_map)
+        primer_blocks = self.generate_primer(
+            doc.plain_text, word_count, lexical_map=lexical_map
+        )
 
         if primer_blocks:
             # Prepend primer blocks to document
@@ -428,9 +464,12 @@ class PrimerGenerator:
                 doc.vocabulary = VocabularyMetadata()
 
             # Store pre-reading words
-            difficult_words = self.difficulty_analyzer.get_difficult_words(
-                doc.plain_text, count=word_count
-            )
+            if lexical_map is not None:
+                difficult_words = self._select_from_lexical_map(lexical_map, word_count)
+            else:
+                difficult_words = self.difficulty_analyzer.get_difficult_words(
+                    doc.plain_text, count=word_count
+                )
             doc.vocabulary.pre_reading_words = difficult_words
 
         return doc

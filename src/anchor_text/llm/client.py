@@ -107,6 +107,7 @@ class LLMClient:
         is_continuation: bool = False,
         is_final: bool = True,
         level: int = ScaffoldLevel.MAX,
+        exclusion_prompt: str = "",
     ) -> str:
         """Transform text using the Literacy Bridge Protocol.
 
@@ -115,11 +116,14 @@ class LLMClient:
             is_continuation: Whether this is a middle chunk
             is_final: Whether this is the last chunk
             level: Scaffolding level (1-5, default 1 = MAX support)
+            exclusion_prompt: Optional prompt snippet listing mastered words to exclude
 
         Returns:
             Transformed text with protocol formatting applied
         """
         system_prompt = get_system_prompt(is_continuation, is_final, level)
+        if exclusion_prompt:
+            system_prompt += exclusion_prompt
         return self._call_llm(text, system_prompt)
 
     def transform_with_validation(
@@ -128,6 +132,7 @@ class LLMClient:
         is_continuation: bool = False,
         is_final: bool = True,
         level: int = ScaffoldLevel.MAX,
+        exclusion_prompt: str = "",
     ) -> str:
         """Transform text with validation and auto-retry on failure.
 
@@ -136,6 +141,7 @@ class LLMClient:
             is_continuation: Whether this is a middle chunk
             is_final: Whether this is the last chunk
             level: Scaffolding level (1-5, default 1 = MAX support)
+            exclusion_prompt: Optional prompt snippet listing mastered words to exclude
 
         Returns:
             Validated transformed text
@@ -150,7 +156,9 @@ class LLMClient:
         expect_trap = level <= ScaffoldLevel.LOW  # Levels 1-4 have traps
 
         for attempt in range(self.max_retries):
-            result = self.transform_text(text, is_continuation, is_final, level)
+            result = self.transform_text(
+                text, is_continuation, is_final, level, exclusion_prompt
+            )
 
             # Use level-appropriate validation
             is_valid, issues = validate_transformation(
@@ -170,10 +178,10 @@ class LLMClient:
                     f"\n\nIMPORTANT: Your previous response was missing: "
                     f"{', '.join(issues)}. Please ensure ALL rules are applied."
                 )
-                result = self._call_llm(
-                    text + reminder,
-                    get_system_prompt(is_continuation, is_final, level),
-                )
+                system_prompt = get_system_prompt(is_continuation, is_final, level)
+                if exclusion_prompt:
+                    system_prompt += exclusion_prompt
+                result = self._call_llm(text + reminder, system_prompt)
                 is_valid, issues = validate_transformation(
                     result,
                     expect_decoder_trap=expect_trap,

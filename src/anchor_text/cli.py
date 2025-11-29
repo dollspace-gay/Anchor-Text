@@ -51,6 +51,8 @@ def process_file(
     enhanced_traps: bool = False,
     vocab_guide: bool = False,
     primer: bool = False,
+    adaptive: bool = False,
+    fade_threshold: Optional[int] = None,
 ) -> bool:
     """Process a single file. Returns True on success."""
     if not input_path.exists():
@@ -79,6 +81,9 @@ def process_file(
             console.print("[blue]Vocabulary guide:[/blue] Will be generated")
         if primer:
             console.print("[blue]Pre-reading primer:[/blue] Enabled")
+        if adaptive:
+            threshold_msg = f" (threshold: {fade_threshold})" if fade_threshold else ""
+            console.print(f"[blue]Adaptive scaffolding:[/blue] Enabled{threshold_msg}")
 
     try:
         transformer = TextTransformer(
@@ -86,6 +91,8 @@ def process_file(
             level=level,
             enhanced_traps=enhanced_traps,
             pre_reading_primer=primer,
+            adaptive=adaptive,
+            fade_threshold=fade_threshold,
         )
         document = transformer.transform_file(input_path, output_path)
         console.print(f"[green]Success:[/green] {output_path}")
@@ -121,6 +128,8 @@ def process_folder(
     enhanced_traps: bool = False,
     vocab_guide: bool = False,
     primer: bool = False,
+    adaptive: bool = False,
+    fade_threshold: Optional[int] = None,
     recursive: bool = True,
 ) -> tuple[int, int]:
     """Process all supported files in a folder. Returns (success_count, fail_count)."""
@@ -148,6 +157,8 @@ def process_folder(
 
     console.print(f"[blue]Found {len(files)} file(s) to process[/blue]")
     console.print(f"[blue]Level:[/blue] {level} ({get_level_description(level)})")
+    if adaptive:
+        console.print("[blue]Adaptive scaffolding:[/blue] Enabled")
 
     success_count = 0
     fail_count = 0
@@ -161,7 +172,10 @@ def process_folder(
 
         for file_path in files:
             progress.update(task, description=f"Processing {file_path.name}...")
-            if process_file(file_path, None, model, verbose, level, enhanced_traps, vocab_guide, primer):
+            if process_file(
+                file_path, None, model, verbose, level, enhanced_traps,
+                vocab_guide, primer, adaptive, fade_threshold
+            ):
                 success_count += 1
             else:
                 fail_count += 1
@@ -217,6 +231,20 @@ def main(
         "-p",
         help="Add pre-reading warm-up section with difficult words at document start",
     ),
+    adaptive: bool = typer.Option(
+        False,
+        "--adaptive",
+        "-a",
+        help="Enable adaptive scaffolding - fade support for words seen multiple times",
+    ),
+    fade_threshold: Optional[int] = typer.Option(
+        None,
+        "--fade-threshold",
+        "-t",
+        min=1,
+        max=10,
+        help="Number of word occurrences before fading support (default: 3). Requires --adaptive",
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -250,13 +278,26 @@ def main(
         python anchor.py file.pdf --vocab-guide  # Generate vocabulary guide
 
         python anchor.py file.pdf --primer  # Add pre-reading warm-up section
+
+        python anchor.py file.pdf --adaptive  # Fade support for repeated words
+
+        python anchor.py file.pdf --adaptive --fade-threshold 5  # Custom threshold
     """
     settings = get_settings()
     use_model = model or settings.default_model
 
+    # Warn if fade_threshold specified without adaptive
+    if fade_threshold is not None and not adaptive:
+        console.print(
+            "[yellow]Warning:[/yellow] --fade-threshold has no effect without --adaptive"
+        )
+
     if path.is_file():
         # Single file mode
-        success = process_file(path, output, use_model, verbose, level, enhanced_traps, vocab_guide, primer)
+        success = process_file(
+            path, output, use_model, verbose, level, enhanced_traps,
+            vocab_guide, primer, adaptive, fade_threshold
+        )
         raise typer.Exit(0 if success else 1)
     else:
         # Folder mode
@@ -266,7 +307,10 @@ def main(
                 "Files will be saved alongside originals with -anchor suffix."
             )
 
-        success, fail = process_folder(path, use_model, verbose, level, enhanced_traps, vocab_guide, primer)
+        success, fail = process_folder(
+            path, use_model, verbose, level, enhanced_traps,
+            vocab_guide, primer, adaptive, fade_threshold
+        )
         console.print(
             f"\n[bold]Complete:[/bold] {success} succeeded, {fail} failed"
         )
