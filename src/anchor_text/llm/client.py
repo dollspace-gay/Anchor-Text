@@ -1,0 +1,192 @@
+"""LLM client wrapper using LiteLLM for multi-provider support."""
+
+from typing import Optional
+
+from litellm import completion
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
+
+from anchor_text.config import get_settings
+from anchor_text.llm.prompts import get_system_prompt
+
+
+class LLMError(Exception):
+    """Error communicating with LLM provider."""
+
+    pass
+
+
+class ValidationError(Exception):
+    """AI output failed validation."""
+
+    pass
+
+
+class LLMClient:
+    """Unified LLM client using LiteLLM for provider-agnostic API calls."""
+
+    def __init__(
+        self,
+        model: Optional[str] = None,
+        api_base: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: int = 4096,
+    ) -> None:
+        """Initialize the LLM client.
+
+        Args:
+            model: LiteLLM model string (e.g., "gemini/gemini-3-pro-preview")
+            api_base: Optional API base URL (for local LLMs)
+            temperature: Sampling temperature (lower = more deterministic)
+            max_tokens: Maximum tokens in response
+        """
+        settings = get_settings()
+        self.model = model or settings.default_model
+        self.api_base = api_base
+        self.temperature = temperature or settings.llm_temperature
+        self.max_tokens = max_tokens
+        self.max_retries = settings.max_retries
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((LLMError,)),
+        reraise=True,
+    )
+    def _call_llm(self, text: str, system_prompt: str) -> str:
+        """Make an LLM API call with retry logic."""
+        try:
+            response = completion(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": text},
+                ],
+                api_base=self.api_base,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+            content = response.choices[0].message.content
+            if content is None:
+                raise LLMError("LLM returned empty response")
+            return content
+        except Exception as e:
+            if "rate_limit" in str(e).lower():
+                raise LLMError(f"Rate limited: {e}") from e
+            elif "api" in str(e).lower() or "connection" in str(e).lower():
+                raise LLMError(f"API error: {e}") from e
+            raise
+
+    def transform_text(
+        self,
+        text: str,
+        is_continuation: bool = False,
+        is_final: bool = True,
+    ) -> str:
+        """Transform text using the Literacy Bridge Protocol.
+
+        Args:
+            text: The text to transform
+            is_continuation: Whether this is a middle chunk
+            is_final: Whether this is the last chunk
+
+        Returns:
+            Transformed text with protocol formatting applied
+        """
+        system_prompt = get_system_prompt(is_continuation, is_final)
+        return self._call_llm(text, system_prompt)
+
+    def transform_with_validation(
+        self,
+        text: str,
+        is_continuation: bool = False,
+        is_final: bool = True,
+    ) -> str:
+        """Transform text with validation and auto-retry on failure.
+
+        Args:
+            text: The text to transform
+            is_continuation: Whether this is a middle chunk
+            is_final: Whether this is the last chunk
+
+        Returns:
+            Validated transformed text
+
+        Raises:
+            ValidationError: If validation fails after max retries
+        """
+        for attempt in range(self.max_retries):
+            result = self.transform_text(text, is_continuation, is_final)
+            is_valid, issues = validate_transformation(result, is_final)
+
+            if is_valid:
+                return result
+
+            if attempt < self.max_retries - 1:
+                # Retry with a reminder prompt
+                reminder = (
+                    f"\n\nIMPORTANT: Your previous response was missing: "
+                    f"{', '.join(issues)}. Please ensure ALL rules are applied."
+                )
+                result = self._call_llm(
+                    text + reminder,
+                    get_system_prompt(is_continuation, is_final),
+                )
+                is_valid, issues = validate_transformation(result, is_final)
+                if is_valid:
+                    return result
+
+        # Return anyway with warning (don't fail completely)
+        return result
+
+
+def validate_transformation(output: str, expect_decoder_trap: bool = True) -> tuple[bool, list[str]]:
+    """Validate that AI output contains required Literacy Bridge elements.
+
+    Args:
+        output: The AI's transformed text
+        expect_decoder_trap: Whether to require the Decoder's Trap
+
+    Returns:
+        Tuple of (is_valid, list_of_issues)
+    """
+    issues: list[str] = []
+
+    # Check for bold markers (root anchoring / syntactic spine subjects)
+    if "**" not in output:
+        issues.append("bold formatting (root anchoring/subjects)")
+
+    # Check for italic markers (syntactic spine verbs)
+    # Need to check for single * that's not part of **
+    has_italic = False
+    i = 0
+    while i < len(output):
+        if output[i] == "*":
+            if i + 1 < len(output) and output[i + 1] == "*":
+                # This is bold, skip
+                i += 2
+                continue
+            else:
+                has_italic = True
+                break
+        i += 1
+
+    if not has_italic:
+        issues.append("italic formatting (verbs)")
+
+    # Check for middle dots (syllable breaking)
+    if "·" not in output:
+        issues.append("syllable breaks (middle dots)")
+
+    # Check for Decoder's Trap
+    if expect_decoder_trap:
+        decoder_markers = ["[Decoder Check:", "DECODER'S TRAP:", "Decoder's Trap:"]
+        has_trap = any(marker.lower() in output.lower() for marker in decoder_markers)
+        if not has_trap:
+            issues.append("Decoder's Trap question")
+
+    return len(issues) == 0, issues

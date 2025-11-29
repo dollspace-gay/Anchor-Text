@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object:*)",
+      "Bash(bd close:*)",
+      "Bash(bd stats:*)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python anchor.py:*)",
+      "Bash(bd sync:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

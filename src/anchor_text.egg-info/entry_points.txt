@@ -1,0 +1,2 @@
+[console_scripts]
+anchor-text = anchor_text.cli:app
